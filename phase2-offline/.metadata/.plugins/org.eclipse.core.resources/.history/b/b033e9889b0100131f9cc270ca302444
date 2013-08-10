@@ -1,0 +1,100 @@
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
+
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.conf.*;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.util.bloom.HashFunction;
+
+public class WordCount {
+	public static BufferedWriter log;
+	public static int logInst = 0;
+
+	public static class Map extends
+			Mapper<LongWritable, Text, Text, Text> {
+
+		private final static IntWritable one = new IntWritable(1);
+		private Text word = new Text();
+
+		public BufferedWriter getlog() throws IOException {
+			if (logInst == 0) {
+				++logInst;
+				log = new BufferedWriter(new FileWriter("log.txt"));
+			}
+			return log;
+		}
+
+		public void map(LongWritable key, Text value, Context context)
+				throws IOException, InterruptedException {
+			log = getlog();
+			log.write("extracting the input file name\n");
+			FileSplit fileSplit = (FileSplit) context.getInputSplit();
+			String filename = fileSplit.getPath().getName();
+			log.write("filename--> " + filename+"\n");
+			String line = value.toString();
+			StringTokenizer tokenizer = new StringTokenizer(line);
+			while (tokenizer.hasMoreTokens()) {
+				word.set(tokenizer.nextToken());
+				log.write("appending pair: "+word+"----------"+filename);
+				context.write(word, new IntWritable(filename.hashCode()));
+			}
+		}
+	}
+
+	public static class Reduce extends
+			Reducer<Text, IntWritable, Text, IntWritable> {
+
+		public BufferedWriter getlog() throws IOException {
+			if (logInst == 0) {
+				++logInst;
+				log = new BufferedWriter(new FileWriter("log.txt"));
+			}
+			return log;
+		}
+
+		public void reduce(Text key, Iterable<IntWritable> values,
+				Context context) throws IOException, InterruptedException {
+
+			log = getlog();
+			try {
+				log.close();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			int sum = 0;
+			for (IntWritable val : values) {
+				sum += val.get();
+			}
+			context.write(key, new IntWritable(sum));
+		}
+	}
+
+	public static void main(String[] args) throws Exception {
+		Configuration conf = new Configuration();
+
+		Job job = new Job(conf, "wordcount");
+
+		job.setOutputKeyClass(Text.class);
+		job.setOutputValueClass(IntWritable.class);
+
+		job.setMapperClass(Map.class);
+		job.setReducerClass(Reduce.class);
+
+		job.setInputFormatClass(TextInputFormat.class);
+		job.setOutputFormatClass(TextOutputFormat.class);
+
+		FileInputFormat.addInputPath(job, new Path("In"));
+		FileOutputFormat.setOutputPath(job, new Path("Out"));
+
+		job.waitForCompletion(true);
+	}
+
+}

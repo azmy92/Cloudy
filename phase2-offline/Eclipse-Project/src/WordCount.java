@@ -12,13 +12,14 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.util.bloom.HashFunction;
 
 public class WordCount {
-	public static BufferedWriter wr;
+	public static BufferedWriter log;
 	public static int logInst = 0;
 
 	public static class Map extends
-			Mapper<LongWritable, Text, Text, IntWritable> {
+			Mapper<LongWritable, Text, Text, Text> {
 
 		private final static IntWritable one = new IntWritable(1);
 		private Text word = new Text();
@@ -26,53 +27,53 @@ public class WordCount {
 		public BufferedWriter getlog() throws IOException {
 			if (logInst == 0) {
 				++logInst;
-				wr = new BufferedWriter(new FileWriter("log.txt"));
+				log = new BufferedWriter(new FileWriter("log.txt"));
 			}
-			return wr;
+			return log;
 		}
 
 		public void map(LongWritable key, Text value, Context context)
 				throws IOException, InterruptedException {
-			wr = getlog();
-			// extracting input file name
+			log = getlog();
+			log.write("extracting the input file name\n");
 			FileSplit fileSplit = (FileSplit) context.getInputSplit();
 			String filename = fileSplit.getPath().getName();
-			wr.newLine();
-			wr.write("filename--> " + filename);
+			log.write("filename--> " + filename+"\n");
 			String line = value.toString();
 			StringTokenizer tokenizer = new StringTokenizer(line);
 			while (tokenizer.hasMoreTokens()) {
 				word.set(tokenizer.nextToken());
-				context.write(word, one);
+				//log.write("appending pair: "+word+"----------"+filename+\n);
+				context.write(word,new Text(filename));
 			}
 		}
 	}
 
 	public static class Reduce extends
-			Reducer<Text, IntWritable, Text, IntWritable> {
+			Reducer<Text, Text, Text, Text> {
 
 		public BufferedWriter getlog() throws IOException {
 			if (logInst == 0) {
 				++logInst;
-				wr = new BufferedWriter(new FileWriter("log.txt"));
+				log = new BufferedWriter(new FileWriter("log.txt"));
 			}
-			return wr;
+			return log;
 		}
 
-		public void reduce(Text key, Iterable<IntWritable> values,
+		public void reduce(Text key, Iterable<Text> values,
 				Context context) throws IOException, InterruptedException {
 
-			wr = getlog();
+			log = getlog();
 			try {
-				wr.close();
+				log.close();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			int sum = 0;
-			for (IntWritable val : values) {
-				sum += val.get();
+			String sum = "";
+			for (Text val : values) {
+				sum += val.toString()+"$";
 			}
-			context.write(key, new IntWritable(sum));
+			context.write(key, new Text(sum));
 		}
 	}
 
@@ -82,7 +83,7 @@ public class WordCount {
 		Job job = new Job(conf, "wordcount");
 
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
 
 		job.setMapperClass(Map.class);
 		job.setReducerClass(Reduce.class);
