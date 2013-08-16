@@ -31,43 +31,61 @@ app.configure('development', function(){
 });
 
 app.get('/', function(req, res){
-  res.render('index', {
-    title: 'Home'
-  });
-});
-
-app.get('/about', function(req, res){
-  res.render('about', {
-    title: 'About'
-  });
-});
-
-app.get('/contact', function(req, res){
-  res.render('contact', {
-    title: 'Contact'
-  });
+var response='WELCOME TO MAPICO SEARCH ENGINE<br><br> Write your query as a GET query in the url in the variable query<br>to page result<br>example /result?query=2003 2013';
+res.send(response);
 });
 
 app.get('/result',function(req,res){
-//connecting to to the database
-var client = new pg.Client(config.DBparams);
-client.connect(function(err) {
+
+
+  var queryArray=req.query['query'].split(" ");
+  console.log(queryArray);
+  console.log(queryArray.length);
+  var query= 'SELECT * FROM word where word = \'';
+  for(var i=0;i<queryArray.length;++i){
+     if(i == queryArray.length-1)
+       query+=queryArray[i]+'\'';
+     else
+       query+=queryArray[i]+"\' OR word = \'";
+  }
+ console.log(query);
+  
+ //connecting to to the database 
+ var client = new pg.Client(config.DBparams);
+ client.connect(function(err) {
   if(err) {
     return console.error('could not connect to postgres', err);
   }
   console.log('connected');
   });
-//TODO fetch user query
-//query database
-//return the result  
+  //TODO fetch user query
+  client.query(query, function(err, result) {
+    if(err) {
+      return console.error('error running query1', err);
+    }
+    console.error('q1', result.rows);
+    var response='Result for '+req.query['query']+' :<br>';
+    for(var j=0;j<result.rows.length;++j){
+	console.log(result.rows[j]['urls']);
+        var locres = result.rows[j]['urls'].split(" ")
+        for (var k=0;k<locres.length;++k){
+	    response+='<br><a href=\'http://'+'\'>'+locres[k]+'</a>';
+	}
+    }
+    console.log(response);
+    res.send(response);
+    client.end();
+  });
 });
 
 /**
-* for development testing perpose
+* for development testing purpose
 */
 app.get('/test', function(req, res){
   res.send(req.query);
   console.log(req.query);
+  var slpited = req.query['7mada'].split(" ");
+  console.log(slpited);
 });
 
 http.createServer(app).listen(app.get('port'), function(){

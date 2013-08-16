@@ -52,5 +52,6 @@
 	<classpathentry kind="lib" path="/home/azmy/hadoop/hadoop/hadoop-ant-1.0.3.jar"/>
 	<classpathentry kind="lib" path="/home/azmy/hadoop/hadoop/hadoop-minicluster-1.0.3.jar"/>
 	<classpathentry kind="lib" path="/home/azmy/hadoop/hadoop/hadoop-tools-1.0.3.jar"/>
+	<classpathentry kind="lib" path="/home/azmy/workrep/map-reduce-Search-engine/phase2-offline/Eclipse-Project/postgresql-9.2-1003.jdbc4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

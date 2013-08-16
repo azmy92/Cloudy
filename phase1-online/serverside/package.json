@@ -1,5 +1,5 @@
 {
-  "name": "express_example",
+  "name": "Mapico",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -12,6 +12,7 @@
   "dependencies": {
     "express": "3.1.0",
     "jade": "0.28.1",
+    "pg": "0.6.15",
     "stylus": "0.32.1"
   }
 }

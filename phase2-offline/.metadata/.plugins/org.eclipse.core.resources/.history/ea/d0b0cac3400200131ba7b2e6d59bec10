@@ -1,0 +1,168 @@
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.*;
+
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.conf.*;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.util.bloom.HashFunction;
+
+public class WordCount {
+	public static BufferedWriter log;
+	public static int logInst = 0;
+	public static Connection Sqlconnection;
+	public static Statement sqlstatement;
+
+	/**
+	 * JDBS cinnection function
+	 */
+	private static Connection getConnection() throws URISyntaxException,
+			SQLException {
+
+		String username = "pkkpwxoobooybe";
+		String password = "PCYhza2U61yp6FTbQf3ePtjxBu";
+		String dbUrl = "jdbc:postgresql://"
+				+ "ec2-54-225-68-241.compute-1.amazonaws.com"
+				+ ':'
+				+ "5432"
+				+ "/d6c5bbslbojoa1"
+				+ "?ssl=true&sslfactory=org.postgresql.ssl.NonValidatingFactory";
+
+		return DriverManager.getConnection(dbUrl, username, password);
+	}
+
+	/**
+	 * get an instance of the log.txt BufferedWriter
+	 * 
+	 * @return
+	 * @throws IOException
+	 */
+	public static BufferedWriter getlog() throws IOException {
+		if (logInst == 0) {
+			++logInst;
+			log = new BufferedWriter(new FileWriter("log.txt"));
+		}
+		return log;
+	}
+
+	public static class Map extends Mapper<LongWritable, Text, Text, Text> {
+
+		private final static IntWritable one = new IntWritable(1);
+		private Text word = new Text();
+
+		/**
+		 * the output of the map is (key: word, value: url name)
+		 */
+		public void map(LongWritable key, Text value, Context context)
+				throws IOException, InterruptedException {
+			log = getlog();
+			// log.write("extracting the input file name\n");
+			FileSplit fileSplit = (FileSplit) context.getInputSplit();
+			String filename = fileSplit.getPath().getName();
+			// log.write("filename--> " + filename + "\n");
+			String line = value.toString();
+			StringTokenizer tokenizer = new StringTokenizer(line);
+			while (tokenizer.hasMoreTokens()) {
+				word.set(tokenizer.nextToken());
+				context.write(word, new Text(filename));
+			}
+		}
+	}
+
+	public static class Reduce extends Reducer<Text, Text, Text, Text> {
+
+		/**
+		 * The output of the reducer is (key: word, value: all urls that has
+		 * this word in its content) and saved to inverted index file.
+		 */
+		public void reduce(Text key, Iterable<Text> values, Context context)
+				throws IOException, InterruptedException {
+			// log = getlog();
+			String sum = "";
+			for (Text val : values) {
+				// prevent duplications
+				if (!contains(sum, val.toString(), " "))
+					sum += val.toString() + " ";
+			}
+			context.write(key, new Text(sum));
+			/**
+			 * commit the result to the DB
+			 */
+			String sql = "Insert into word VALUES (0,"+key.toString()+","+sum+")";
+			ResultSet result;
+			try {
+				result = sqlstatement.executeQuery(sql);
+			} catch (SQLException e) {
+				log.write("error commiting query: "+sql+"\n");
+				log.write("error message: "+e.getMessage()+"\n");
+			}
+		}
+
+		private boolean contains(String sum, String string, String splitReg)
+				throws IOException {
+			String[] buff = sum.split(splitReg);
+			for (int i = 0; i < buff.length; ++i) {
+				if (buff[i].equals(string)) {
+					// log.write(sum+" contains "+string+"\n");
+					return true;
+				}
+			}
+			// log.write(sum+" Nocontains "+string+"\n");
+			return false;
+		}
+	}
+
+	public static void main(String[] args) throws Exception {
+		log = getlog();
+		/*
+		 * connect to DB
+		 */
+		Class.forName("org.postgresql.Driver");
+		Sqlconnection = getConnection();
+		sqlstatement = Sqlconnection.createStatement();
+		log.write("connected to DB user: pkkpwxoobooybe pass:PCYhza2U61yp6FTbQf3ePtjxBu  host:ec2-54-225-68-241.compute-1.amazonaws.com\n");
+		
+		Configuration conf = new Configuration();
+
+		Job job = new Job(conf, "wordcount");
+
+		job.setOutputKeyClass(Text.class);
+		job.setOutputValueClass(Text.class);
+
+		job.setMapperClass(Map.class);
+		job.setReducerClass(Reduce.class);
+
+		job.setInputFormatClass(TextInputFormat.class);
+		job.setOutputFormatClass(TextOutputFormat.class);
+
+		FileInputFormat.addInputPath(job, new Path("In"));
+		FileOutputFormat.setOutputPath(job, new Path("Out"));
+
+		job.waitForCompletion(true);
+
+		/**
+		 * close the log file buffer
+		 */
+		try {
+			log.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+}
