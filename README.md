@@ -21,13 +21,17 @@ Use one map-reduce:
 the project is divided to two phases:
 
 1- offline phase 
+
 This phase is implemented using Hadoop.
+
 input: urls
 output: inverted index file (key: word, value: url name)
 
 
 2- online phase
+
 This phase is implemented using node.js
 input: user query
+
 output:  urls sorted based on their relevance
 
